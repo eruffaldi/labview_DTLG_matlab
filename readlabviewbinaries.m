@@ -30,7 +30,11 @@
 % FF FF FF FF variable dimension size
 
 
-function [trace, time_vector, timestep, code] = readlabviewbinaries(filename)
+function [trace, time_vector, timestep, code] = readlabviewbinaries(filename,verbose)
+
+if nargin == 1
+    verbose = 0;
+end
 
 trace = 0;
 time_vector = 0;
@@ -38,7 +42,9 @@ timestep = 0;
 freqver = 0;
 fid = fopen(filename,'r','b');
 
-if fid > 2
+if fid == -1
+    error('cannot open file');
+end
     
     dtlg_format = fread(fid, 1, 'uint32', 'ieee-be'); % check if DTLG format
 
@@ -49,12 +55,17 @@ if fid > 2
         frewind(fid); % set pointer back to start
 
         timestep_offset = 0;
+        if verbose > 0
+            disp(sprintf('version: %d',version));
+        end
 
         if version == 8
             fseek(fid, 10, 'bof'); % eleventh byte contains number of records
             freqver = fread(fid, 1, 'uint16', 'ieee-be'); % detect number of records
-            records = freqver;
-            records = 2;
+            records = freqver;        
+            if verbose > 0
+                disp(sprintf('Records %d',records));
+            end
             bof_offset = 602; % bytes to skip from start of file
             timestep_offset = 590;
             fseek(fid, 594, 'bof');
@@ -62,6 +73,9 @@ if fid > 2
             record_size = fread(fid, 1, 'uint32', 'ieee-be');
             fseek(fid, 594, 'bof');
             unique_id2 = fread(fid, 1, 'uint64', 'ieee-be');
+            if verbose > 0
+                disp(sprintf('Record size: %d   UniqueID:%d UniqueID2:%d',record_size,unique_id,unique_id2));
+            end
             
             % there are two headers one after first record and another
             % after the second record
@@ -120,6 +134,8 @@ if fid > 2
             
             record_size = 39999;
             trace = zeros(640000,1);
+        else
+            error('unknown version');
         end
 
         if timestep_offset ~= 0 % successful detection of labview version
@@ -161,10 +177,10 @@ if fid > 2
             time_vector = 0:timestep:(timestep*length(trace)-timestep);
         elseif timestep_offset == 0
             code = 0;
+        else
+            error('unknown timestep offset:%d',timestep_offset);
         end
     else
+        error('Unsupported file: magic %d',dtlg_format);
         code = 0;
     end
-else
-    code = 0;
-end
